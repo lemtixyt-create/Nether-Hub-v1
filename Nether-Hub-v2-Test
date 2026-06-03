@@ -1,0 +1,1036 @@
+-- =========================================================
+--        NETHER6029 HUB V2 - ADVANCED EDITION
+--        Full Feature Set + Premium GUI + Numpad Hotkeys
+-- =========================================================
+-- HOTKEYS (Numpad)
+-- Numpad1 = Toggle Fly
+-- Numpad2 = Toggle Freeze
+-- Numpad3 = Toggle Noclip
+-- Numpad4 = Toggle ESP
+-- Numpad5 = Tween TP
+-- Numpad6 = Bypass TP
+-- Numpad0 = Hide/Show GUI
+
+local Players         = game:GetService("Players")
+local RunService      = game:GetService("RunService")
+local UserInputService= game:GetService("UserInputService")
+local TweenService    = game:GetService("TweenService")
+local StarterGui      = game:GetService("StarterGui")
+
+local Player  = Players.LocalPlayer
+local Camera  = workspace.CurrentCamera
+
+-- =========================================================
+-- UTILITY
+-- =========================================================
+local function makeTween(obj, props, t, style, dir)
+    style = style or Enum.EasingStyle.Quad
+    dir   = dir   or Enum.EasingDirection.Out
+    return TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+end
+
+local function notify(title, text, dur)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title    = title,
+            Text     = text,
+            Duration = dur or 4,
+            Button1  = "Got it"
+        })
+    end)
+end
+
+-- =========================================================
+-- STATE
+-- =========================================================
+local flying      = false
+local flySpeed    = 50
+local walkSpeed   = 16
+local frozen      = false
+local noclip      = false
+local espActive   = false
+local guiVisible  = true
+
+local ctrl = {f=0, b=0, l=0, r=0}
+local bg, bv = nil, nil
+local freezeConnection, noclipConnection = nil, nil
+local freezePos = nil
+local currentTween = nil
+local isTpLoopActive = false
+
+-- =========================================================
+-- GUI CONSTRUCTION
+-- =========================================================
+-- Remove old instance if re-executing
+if Player:FindFirstChild("PlayerGui") and Player.PlayerGui:FindFirstChild("N6029_HubV2") then
+    Player.PlayerGui.N6029_HubV2:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name          = "N6029_HubV2"
+ScreenGui.ResetOnSpawn  = false
+ScreenGui.ZIndexBehavior= Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent        = Player:WaitForChild("PlayerGui")
+
+-- ── MAIN FRAME ──────────────────────────────────────────
+local MainFrame = Instance.new("Frame")
+MainFrame.Name            = "MainFrame"
+MainFrame.Size            = UDim2.new(0, 280, 0, 660)
+MainFrame.Position        = UDim2.new(0.5, -140, 0.5, -330)
+MainFrame.BackgroundColor3= Color3.fromRGB(10, 10, 14)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active          = true
+MainFrame.Draggable       = true
+MainFrame.ClipsDescendants= true
+MainFrame.Parent          = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
+
+-- Outer glow stroke
+local stroke = Instance.new("UIStroke")
+stroke.Color     = Color3.fromRGB(0, 210, 255)
+stroke.Thickness = 1.5
+stroke.Transparency = 0.3
+stroke.Parent    = MainFrame
+
+-- Animated gradient accent bar (top)
+local AccentBar = Instance.new("Frame")
+AccentBar.Size            = UDim2.new(1, 0, 0, 3)
+AccentBar.Position        = UDim2.new(0, 0, 0, 0)
+AccentBar.BackgroundColor3= Color3.fromRGB(0, 200, 255)
+AccentBar.BorderSizePixel = 0
+AccentBar.ZIndex          = 5
+AccentBar.Parent          = MainFrame
+
+local AccentGrad = Instance.new("UIGradient")
+AccentGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(0, 200, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(160, 0, 255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(0, 200, 255)),
+})
+AccentGrad.Parent = AccentBar
+
+-- Animate gradient offset
+task.spawn(function()
+    local t = 0
+    while MainFrame.Parent do
+        t = (t + 0.005) % 1
+        AccentGrad.Offset = Vector2.new(t, 0)
+        RunService.Heartbeat:Wait()
+    end
+end)
+
+-- ── HEADER ──────────────────────────────────────────────
+local Header = Instance.new("Frame")
+Header.Size            = UDim2.new(1, 0, 0, 48)
+Header.Position        = UDim2.new(0, 0, 0, 3)
+Header.BackgroundColor3= Color3.fromRGB(14, 14, 20)
+Header.BorderSizePixel = 0
+Header.Parent          = MainFrame
+
+local HeaderTitle = Instance.new("TextLabel")
+HeaderTitle.Size              = UDim2.new(1, -50, 1, 0)
+HeaderTitle.Position          = UDim2.new(0, 14, 0, 0)
+HeaderTitle.BackgroundTransparency = 1
+HeaderTitle.Text              = "⚡  NETHER6029  HUB  V2"
+HeaderTitle.TextColor3        = Color3.fromRGB(0, 220, 255)
+HeaderTitle.TextSize          = 15
+HeaderTitle.Font               = Enum.Font.GothamBold
+HeaderTitle.TextXAlignment     = Enum.TextXAlignment.Left
+HeaderTitle.Parent             = Header
+
+local SubLabel = Instance.new("TextLabel")
+SubLabel.Size              = UDim2.new(1, -50, 0, 14)
+SubLabel.Position          = UDim2.new(0, 14, 1, -15)
+SubLabel.BackgroundTransparency = 1
+SubLabel.Text              = "Advanced Edition  |  Numpad Hotkeys Active"
+SubLabel.TextColor3        = Color3.fromRGB(90, 90, 120)
+SubLabel.TextSize          = 10
+SubLabel.Font               = Enum.Font.Gotham
+SubLabel.TextXAlignment     = Enum.TextXAlignment.Left
+SubLabel.Parent             = Header
+
+-- Close button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size            = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position        = UDim2.new(1, -36, 0, 10)
+CloseBtn.BackgroundColor3= Color3.fromRGB(200, 40, 60)
+CloseBtn.Text            = "✕"
+CloseBtn.TextColor3      = Color3.fromRGB(255,255,255)
+CloseBtn.TextSize        = 13
+CloseBtn.Font             = Enum.Font.GothamBold
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Parent          = Header
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,6)
+
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+-- ── SCROLL CONTAINER ────────────────────────────────────
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size              = UDim2.new(1, 0, 1, -51)
+ScrollFrame.Position          = UDim2.new(0, 0, 0, 51)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel   = 0
+ScrollFrame.ScrollBarThickness= 3
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0,200,255)
+ScrollFrame.CanvasSize        = UDim2.new(0,0,0,0)
+ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ScrollFrame.Parent            = MainFrame
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding      = UDim.new(0, 6)
+ListLayout.SortOrder    = Enum.SortOrder.LayoutOrder
+ListLayout.Parent       = ScrollFrame
+
+local Padding = Instance.new("UIPadding")
+Padding.PaddingLeft   = UDim.new(0,12)
+Padding.PaddingRight  = UDim.new(0,12)
+Padding.PaddingTop    = UDim.new(0,10)
+Padding.PaddingBottom = UDim.new(0,10)
+Padding.Parent        = ScrollFrame
+
+-- ── HELPERS ─────────────────────────────────────────────
+local layoutOrder = 0
+local function nextOrder() layoutOrder += 1 return layoutOrder end
+
+local function sectionLabel(txt)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size              = UDim2.new(1, 0, 0, 22)
+    lbl.BackgroundTransparency = 1
+    lbl.Text              = "  " .. txt:upper()
+    lbl.TextColor3        = Color3.fromRGB(0, 200, 255)
+    lbl.TextSize          = 10
+    lbl.Font               = Enum.Font.GothamBold
+    lbl.TextXAlignment     = Enum.TextXAlignment.Left
+    lbl.LayoutOrder        = nextOrder()
+    lbl.Parent             = ScrollFrame
+
+    local line = Instance.new("Frame")
+    line.Size            = UDim2.new(1, 0, 0, 1)
+    line.BackgroundColor3= Color3.fromRGB(0,200,255)
+    line.BorderSizePixel = 0
+    line.BackgroundTransparency = 0.7
+    line.LayoutOrder     = nextOrder()
+    line.Parent          = ScrollFrame
+    return lbl
+end
+
+local function makeToggleBtn(labelOff, labelOn, colorOff, colorOn, hotkey)
+    local btn = Instance.new("TextButton")
+    btn.Size            = UDim2.new(1, 0, 0, 40)
+    btn.BackgroundColor3= colorOff
+    btn.Text            = labelOff .. (hotkey and ("  [" .. hotkey .. "]") or "")
+    btn.TextColor3      = Color3.fromRGB(255,255,255)
+    btn.TextSize        = 13
+    btn.Font             = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    btn.LayoutOrder     = nextOrder()
+    btn.Parent          = ScrollFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
+
+    local inStroke = Instance.new("UIStroke")
+    inStroke.Thickness = 1
+    inStroke.Color     = Color3.fromRGB(255,255,255)
+    inStroke.Transparency = 0.85
+    inStroke.Parent    = btn
+
+    -- hover
+    btn.MouseEnter:Connect(function()
+        makeTween(btn, {BackgroundTransparency=0.15}, 0.12):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        makeTween(btn, {BackgroundTransparency=0}, 0.12):Play()
+    end)
+
+    local state = false
+    local function setState(on)
+        state = on
+        if on then
+            btn.Text            = labelOn  .. (hotkey and ("  [" .. hotkey .. "]") or "")
+            btn.BackgroundColor3= colorOn
+        else
+            btn.Text            = labelOff .. (hotkey and ("  [" .. hotkey .. "]") or "")
+            btn.BackgroundColor3= colorOff
+        end
+    end
+    return btn, setState, function() return state end
+end
+
+local function makeTextInput(placeholder, default)
+    local box = Instance.new("TextBox")
+    box.Size            = UDim2.new(1, 0, 0, 36)
+    box.BackgroundColor3= Color3.fromRGB(20, 20, 30)
+    box.Text            = default or ""
+    box.PlaceholderText = placeholder
+    box.TextColor3      = Color3.fromRGB(0, 220, 255)
+    box.PlaceholderColor3 = Color3.fromRGB(70,70,90)
+    box.TextSize        = 13
+    box.Font             = Enum.Font.Gotham
+    box.BorderSizePixel = 0
+    box.LayoutOrder     = nextOrder()
+    box.Parent          = ScrollFrame
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0,8)
+    local s = Instance.new("UIStroke")
+    s.Color       = Color3.fromRGB(0,200,255)
+    s.Thickness   = 1
+    s.Transparency= 0.6
+    s.Parent      = box
+    return box
+end
+
+local function makeSliderLabel(text)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size              = UDim2.new(1, 0, 0, 18)
+    lbl.BackgroundTransparency = 1
+    lbl.Text              = text
+    lbl.TextColor3        = Color3.fromRGB(180,180,210)
+    lbl.TextSize          = 12
+    lbl.Font               = Enum.Font.Gotham
+    lbl.TextXAlignment     = Enum.TextXAlignment.Left
+    lbl.LayoutOrder        = nextOrder()
+    lbl.Parent             = ScrollFrame
+    return lbl
+end
+
+local function makeNumInput(placeholder, default)
+    local box = Instance.new("TextBox")
+    box.Size            = UDim2.new(1, 0, 0, 34)
+    box.BackgroundColor3= Color3.fromRGB(18, 18, 28)
+    box.Text            = tostring(default or "")
+    box.PlaceholderText = placeholder
+    box.TextColor3      = Color3.fromRGB(0,255,180)
+    box.PlaceholderColor3 = Color3.fromRGB(60,60,80)
+    box.TextSize        = 13
+    box.Font             = Enum.Font.GothamBold
+    box.BorderSizePixel = 0
+    box.LayoutOrder     = nextOrder()
+    box.Parent          = ScrollFrame
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0,8)
+    local s = Instance.new("UIStroke")
+    s.Color       = Color3.fromRGB(0,255,180)
+    s.Thickness   = 1
+    s.Transparency= 0.55
+    s.Parent      = box
+    return box
+end
+
+local function makeSplitRow(btnA_text, btnA_color, btnB_text, btnB_color)
+    local row = Instance.new("Frame")
+    row.Size            = UDim2.new(1, 0, 0, 38)
+    row.BackgroundTransparency = 1
+    row.LayoutOrder     = nextOrder()
+    row.Parent          = ScrollFrame
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.Padding       = UDim.new(0, 8)
+    layout.Parent        = row
+
+    local function halfBtn(text, color)
+        local b = Instance.new("TextButton")
+        b.Size            = UDim2.new(0.5, -4, 1, 0)
+        b.BackgroundColor3= color
+        b.Text            = text
+        b.TextColor3      = Color3.fromRGB(255,255,255)
+        b.TextSize        = 12
+        b.Font             = Enum.Font.GothamBold
+        b.BorderSizePixel = 0
+        b.Parent          = row
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0,8)
+        b.MouseEnter:Connect(function() makeTween(b,{BackgroundTransparency=0.2},0.1):Play() end)
+        b.MouseLeave:Connect(function() makeTween(b,{BackgroundTransparency=0},0.1):Play() end)
+        return b
+    end
+
+    return halfBtn(btnA_text, btnA_color), halfBtn(btnB_text, btnB_color), row
+end
+
+-- =========================================================
+-- SECTION: MOVEMENT
+-- =========================================================
+sectionLabel("✈  Movement")
+
+local FlyBtn, setFlyState = makeToggleBtn(
+    "Fly: OFF", "Fly: ON",
+    Color3.fromRGB(30,110,60), Color3.fromRGB(60,200,100),
+    "Numpad 1"
+)
+
+local FlySpeedLbl = makeSliderLabel("Fly Speed: 50")
+local FlySpeedBox = makeNumInput("Fly Speed (1–500)", 50)
+
+local WalkSpeedLbl = makeSliderLabel("Walk Speed: 16")
+local WalkSpeedBox = makeNumInput("Walk Speed (16–500)", 16)
+
+local FreezeBtn, setFreezeState = makeToggleBtn(
+    "Freeze Me: OFF", "Freeze Me: ON",
+    Color3.fromRGB(30,80,160), Color3.fromRGB(40,160,220),
+    "Numpad 2"
+)
+
+-- =========================================================
+-- SECTION: UTILITY
+-- =========================================================
+sectionLabel("🔧  Utility")
+
+local NoclipBtn, setNoclipState = makeToggleBtn(
+    "Noclip: OFF", "Noclip: ON",
+    Color3.fromRGB(90,30,140), Color3.fromRGB(160,40,255),
+    "Numpad 3"
+)
+
+local EspBtn, setEspState = makeToggleBtn(
+    "Player ESP: OFF", "Player ESP: ON",
+    Color3.fromRGB(60,60,140), Color3.fromRGB(120,0,200),
+    "Numpad 4"
+)
+
+-- =========================================================
+-- SECTION: TELEPORT
+-- =========================================================
+sectionLabel("🌀  Teleport")
+
+local PlayerTextBox = makeTextInput("Enter target player name...", "")
+
+local TweenTPBtn, BypassTPBtn, _ = makeSplitRow(
+    "Tween TP  [Num5]", Color3.fromRGB(30,130,70),
+    "Bypass TP  [Num6]", Color3.fromRGB(130,70,30)
+)
+
+local StopTPBtn = Instance.new("TextButton")
+StopTPBtn.Size            = UDim2.new(1, 0, 0, 34)
+StopTPBtn.BackgroundColor3= Color3.fromRGB(160,30,30)
+StopTPBtn.Text            = "⛔  STOP TELEPORT"
+StopTPBtn.TextColor3      = Color3.fromRGB(255,255,255)
+StopTPBtn.TextSize        = 13
+StopTPBtn.Font             = Enum.Font.GothamBold
+StopTPBtn.BorderSizePixel = 0
+StopTPBtn.LayoutOrder     = nextOrder()
+StopTPBtn.Parent          = ScrollFrame
+Instance.new("UICorner", StopTPBtn).CornerRadius = UDim.new(0,8)
+StopTPBtn.MouseEnter:Connect(function() makeTween(StopTPBtn,{BackgroundTransparency=0.2},0.1):Play() end)
+StopTPBtn.MouseLeave:Connect(function() makeTween(StopTPBtn,{BackgroundTransparency=0},0.1):Play() end)
+
+-- =========================================================
+-- SECTION: PLAYER LIST
+-- =========================================================
+sectionLabel("👥  Players")
+
+local PlayerListLabel = makeSliderLabel("Click a player to auto-fill & TP:")
+
+local PlayerListScroll = Instance.new("ScrollingFrame")
+PlayerListScroll.Size              = UDim2.new(1, 0, 0, 110)
+PlayerListScroll.BackgroundColor3  = Color3.fromRGB(14,14,20)
+PlayerListScroll.BorderSizePixel   = 0
+PlayerListScroll.ScrollBarThickness= 3
+PlayerListScroll.ScrollBarImageColor3= Color3.fromRGB(0,200,255)
+PlayerListScroll.CanvasSize        = UDim2.new(0,0,0,0)
+PlayerListScroll.AutomaticCanvasSize= Enum.AutomaticSize.Y
+PlayerListScroll.LayoutOrder       = nextOrder()
+PlayerListScroll.Parent            = ScrollFrame
+Instance.new("UICorner", PlayerListScroll).CornerRadius = UDim.new(0,8)
+local s2 = Instance.new("UIStroke")
+s2.Color=Color3.fromRGB(0,200,255) s2.Thickness=1 s2.Transparency=0.7 s2.Parent=PlayerListScroll
+
+local PLLayout = Instance.new("UIListLayout")
+PLLayout.Padding   = UDim.new(0,4)
+PLLayout.SortOrder = Enum.SortOrder.Name
+PLLayout.Parent    = PlayerListScroll
+
+local PLPad = Instance.new("UIPadding")
+PLPad.PaddingLeft  = UDim.new(0,6) PLPad.PaddingRight = UDim.new(0,6)
+PLPad.PaddingTop   = UDim.new(0,5) PLPad.PaddingBottom= UDim.new(0,5)
+PLPad.Parent       = PlayerListScroll
+
+-- =========================================================
+-- SECTION: HOTKEYS LEGEND
+-- =========================================================
+sectionLabel("⌨  Hotkeys")
+local hotkeyInfo = {
+    "Numpad 1 → Toggle Fly",
+    "Numpad 2 → Toggle Freeze",
+    "Numpad 3 → Toggle Noclip",
+    "Numpad 4 → Toggle ESP",
+    "Numpad 5 → Tween TP",
+    "Numpad 6 → Bypass TP",
+    "Numpad 0 → Hide / Show GUI",
+}
+for _, line in ipairs(hotkeyInfo) do
+    local lbl = Instance.new("TextLabel")
+    lbl.Size              = UDim2.new(1,0,0,16)
+    lbl.BackgroundTransparency=1
+    lbl.Text              = "  • " .. line
+    lbl.TextColor3        = Color3.fromRGB(120,120,160)
+    lbl.TextSize          = 11
+    lbl.Font               = Enum.Font.Gotham
+    lbl.TextXAlignment     = Enum.TextXAlignment.Left
+    lbl.LayoutOrder        = nextOrder()
+    lbl.Parent             = ScrollFrame
+end
+
+-- =========================================================
+-- FLY LOGIC
+-- =========================================================
+local function startFly()
+    local character = Player.Character
+    if not character then return end
+    local root     = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not root or not humanoid then return end
+
+    flying = true
+    humanoid.PlatformStand = true
+
+    bg = Instance.new("BodyGyro")
+    bg.P          = 9e4
+    bg.maxTorque  = Vector3.new(9e9,9e9,9e9)
+    bg.cframe     = root.CFrame
+    bg.Parent     = root
+
+    bv = Instance.new("BodyVelocity")
+    bv.velocity   = Vector3.new(0,0.1,0)
+    bv.maxForce   = Vector3.new(9e9,9e9,9e9)
+    bv.Parent     = root
+
+    task.spawn(function()
+        while flying do
+            task.wait()
+            if not character or not character:FindFirstChild("HumanoidRootPart") then break end
+            humanoid.PlatformStand = true
+
+            local dir = Vector3.new()
+            if ctrl.f ==  1 then dir += Camera.CFrame.LookVector  end
+            if ctrl.b == -1 then dir -= Camera.CFrame.LookVector  end
+            if ctrl.l == -1 then dir -= Camera.CFrame.RightVector end
+            if ctrl.r ==  1 then dir += Camera.CFrame.RightVector end
+
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                dir += Vector3.new(0,1,0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                dir -= Vector3.new(0,1,0)
+            end
+
+            bv.velocity = dir.Magnitude > 0 and dir.Unit * flySpeed or Vector3.new(0,0.1,0)
+            bg.cframe   = Camera.CFrame
+        end
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+        if humanoid then humanoid.PlatformStand = false end
+    end)
+end
+
+local function stopFly()
+    flying = false
+end
+
+-- =========================================================
+-- FREEZE LOGIC
+-- =========================================================
+local function enableFreeze()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    frozen   = true
+    freezePos= root.CFrame
+    freezeConnection = RunService.Heartbeat:Connect(function()
+        if root and frozen then
+            root.CFrame          = freezePos
+            root.Velocity        = Vector3.new(0,0,0)
+            root.RotVelocity     = Vector3.new(0,0,0)
+        end
+    end)
+end
+local function disableFreeze()
+    frozen = false
+    if freezeConnection then freezeConnection:Disconnect() freezeConnection=nil end
+end
+
+-- =========================================================
+-- NOCLIP LOGIC
+-- =========================================================
+local function enableNoclip()
+    noclip = true
+    noclipConnection = RunService.Stepped:Connect(function()
+        if noclip and Player.Character then
+            for _, part in pairs(Player.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+local function disableNoclip()
+    noclip = false
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection=nil end
+end
+
+-- =========================================================
+-- KEYBOARD INPUT TRACKER
+-- =========================================================
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if     input.KeyCode == Enum.KeyCode.W then ctrl.f =  1
+    elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
+    elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
+    elseif input.KeyCode == Enum.KeyCode.D then ctrl.r =  1 end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if     input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
+    elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
+    elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
+    elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0 end
+end)
+
+-- =========================================================
+-- TELEPORT HELPERS
+-- =========================================================
+local function getTargetPlayer()
+    local text = PlayerTextBox.Text:lower()
+    if text == "" then return nil end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player then
+            local n  = p.Name:lower()
+            local dn = p.DisplayName:lower()
+            if n:sub(1,#text)==text or dn:sub(1,#text)==text then return p end
+        end
+    end
+    return nil
+end
+
+local function stopAllTeleports()
+    isTpLoopActive = false
+    if currentTween then currentTween:Cancel() currentTween=nil end
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root then
+        root.Velocity = Vector3.new(0,0,0)
+        if root:FindFirstChild("TP_Float") then root.TP_Float:Destroy() end
+        local bvStop      = Instance.new("BodyVelocity")
+        bvStop.Name       = "TP_Float"
+        bvStop.maxForce   = Vector3.new(9e9,9e9,9e9)
+        bvStop.velocity   = Vector3.new(0,0,0)
+        bvStop.Parent     = root
+        task.delay(0.5, function() if bvStop then bvStop:Destroy() end end)
+    end
+    notify("Nether6029 Hub", "Teleport stopped.", 2)
+end
+
+local function doTweenTP()
+    stopAllTeleports()
+    local target    = getTargetPlayer()
+    local character = Player.Character
+    local root      = character and character:FindFirstChild("HumanoidRootPart")
+    if not target or not target.Character then
+        notify("Nether6029 Hub", "Target not found!", 3) return
+    end
+    local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+    if not targetRoot or not root then return end
+
+    local floatBV       = Instance.new("BodyVelocity")
+    floatBV.Name        = "TP_Float"
+    floatBV.maxForce    = Vector3.new(9e9,9e9,9e9)
+    floatBV.velocity    = Vector3.new(0,0,0)
+    floatBV.Parent      = root
+
+    local distance  = (root.Position - targetRoot.Position).Magnitude
+    local duration  = math.clamp(distance / 50, 0.5, 6)
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+    currentTween    = TweenService:Create(root, tweenInfo, {CFrame = targetRoot.CFrame + Vector3.new(0,3,0)})
+    currentTween:Play()
+    currentTween.Completed:Connect(function() if floatBV then floatBV:Destroy() end end)
+    notify("Nether6029 Hub", "Tween TP → " .. target.DisplayName, 3)
+end
+
+local function doBypassTP()
+    stopAllTeleports()
+    local target    = getTargetPlayer()
+    local character = Player.Character
+    local root      = character and character:FindFirstChild("HumanoidRootPart")
+    if not target or not target.Character then
+        notify("Nether6029 Hub", "Target not found!", 3) return
+    end
+    local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+    if not targetRoot or not root then return end
+
+    isTpLoopActive = true
+    local startPos  = root.Position
+    local endPos    = targetRoot.Position
+    local diff      = endPos - startPos
+    local steps     = math.max(math.floor(diff.Magnitude / 25), 1)
+
+    task.spawn(function()
+        for i = 1, steps do
+            if not isTpLoopActive or not root or not root.Parent then break end
+            root.CFrame   = CFrame.new(startPos + diff.Unit * (i * 25))
+            root.Velocity = Vector3.new(0,0,0)
+            RunService.Heartbeat:Wait()
+        end
+        if isTpLoopActive and root and root.Parent and targetRoot and targetRoot.Parent then
+            root.CFrame = targetRoot.CFrame + Vector3.new(0,2,0)
+        end
+        isTpLoopActive = false
+    end)
+    notify("Nether6029 Hub", "Bypass TP → " .. target.DisplayName, 3)
+end
+
+-- =========================================================
+-- ESP LOGIC
+-- =========================================================
+local function getLevel(p)
+    if p:FindFirstChild("Data") and p.Data:FindFirstChild("Level") then
+        return p.Data.Level.Value
+    elseif p:FindFirstChild("leaderstats") and p.leaderstats:FindFirstChild("Level") then
+        return p.leaderstats.Level.Value
+    end
+    return "?"
+end
+
+local function createESP(p)
+    if p == Player then return end
+    local function applyESP(character)
+        local head = character:WaitForChild("Head",5)
+        if not head then return end
+        if head:FindFirstChild("N6_ESP") then head.N6_ESP:Destroy() end
+
+        local bbg = Instance.new("BillboardGui")
+        bbg.Name         = "N6_ESP"
+        bbg.Size         = UDim2.new(0,220,0,60)
+        bbg.AlwaysOnTop  = true
+        bbg.ExtentsOffset= Vector3.new(0,3,0)
+        bbg.Parent       = head
+
+        local bg2 = Instance.new("Frame")
+        bg2.Size            = UDim2.new(1,0,1,0)
+        bg2.BackgroundColor3= Color3.fromRGB(0,0,0)
+        bg2.BackgroundTransparency=0.5
+        bg2.BorderSizePixel=0
+        bg2.Parent=bbg
+        Instance.new("UICorner",bg2).CornerRadius=UDim.new(0,6)
+
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size              = UDim2.new(1,0,1,0)
+        textLabel.BackgroundTransparency=1
+        textLabel.TextSize          = 13
+        textLabel.Font               = Enum.Font.GothamBold
+        textLabel.TextStrokeTransparency=0
+        textLabel.TextStrokeColor3  = Color3.fromRGB(0,0,0)
+        textLabel.Parent            = bbg
+
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            if not espActive or not head or not head:FindFirstChild("N6_ESP") then
+                if conn then conn:Disconnect() end
+                pcall(function() bbg:Destroy() end)
+                return
+            end
+            local hum = character:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+            local hp    = math.floor(hum.Health)
+            local maxHp = math.floor(hum.MaxHealth)
+            local lvl   = getLevel(p)
+            local dist  = math.floor((Camera.CFrame.Position - head.Position).Magnitude)
+            textLabel.Text = string.format("[ %s ]\nLv.%s  |  HP: %d/%d  |  %dm", p.DisplayName, tostring(lvl), hp, maxHp, dist)
+            local pct = math.clamp(hum.Health/hum.MaxHealth, 0, 1)
+            textLabel.TextColor3 = Color3.fromRGB(255, math.floor(pct*255), math.floor(pct*100))
+        end)
+    end
+    if p.Character then task.spawn(function() applyESP(p.Character) end) end
+    p.CharacterAdded:Connect(applyESP)
+end
+
+-- =========================================================
+-- PLAYER LIST
+-- =========================================================
+local function updatePlayerList()
+    for _, child in pairs(PlayerListScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    local allPlayers = Players:GetPlayers()
+    for _, p in pairs(allPlayers) do
+        if p ~= Player then
+            local pb = Instance.new("TextButton")
+            pb.Size            = UDim2.new(1,-4,0,26)
+            pb.BackgroundColor3= Color3.fromRGB(20,20,32)
+            pb.Text            = "  " .. p.DisplayName .. "  (@" .. p.Name .. ")"
+            pb.TextColor3      = Color3.fromRGB(200,200,230)
+            pb.TextSize        = 11
+            pb.Font             = Enum.Font.Gotham
+            pb.TextXAlignment   = Enum.TextXAlignment.Left
+            pb.BorderSizePixel = 0
+            pb.Parent          = PlayerListScroll
+            Instance.new("UICorner",pb).CornerRadius=UDim.new(0,5)
+            pb.MouseEnter:Connect(function() makeTween(pb,{BackgroundColor3=Color3.fromRGB(30,30,50)},0.1):Play() end)
+            pb.MouseLeave:Connect(function() makeTween(pb,{BackgroundColor3=Color3.fromRGB(20,20,32)},0.1):Play() end)
+
+            pb.MouseButton1Click:Connect(function()
+                PlayerTextBox.Text = p.Name
+
+                -- Popup
+                local popup = Instance.new("Frame")
+                popup.Size            = UDim2.new(0,220,0,120)
+                popup.Position        = UDim2.new(0.5,-110,0.5,-60)
+                popup.BackgroundColor3= Color3.fromRGB(12,12,18)
+                popup.ZIndex          = 20
+                popup.Parent          = ScreenGui
+                Instance.new("UICorner",popup).CornerRadius=UDim.new(0,12)
+                local ps = Instance.new("UIStroke")
+                ps.Color=Color3.fromRGB(0,200,255) ps.Thickness=1.5 ps.Parent=popup
+
+                local ptitle = Instance.new("TextLabel")
+                ptitle.Size=UDim2.new(1,0,0,30) ptitle.BackgroundTransparency=1
+                ptitle.Text="TP Method → "..p.Name
+                ptitle.TextColor3=Color3.fromRGB(0,220,255)
+                ptitle.TextSize=12 ptitle.Font=Enum.Font.GothamBold ptitle.ZIndex=21 ptitle.Parent=popup
+
+                local function popBtn(text,color,xpos,callback)
+                    local b=Instance.new("TextButton")
+                    b.Size=UDim2.new(0,90,0,32) b.Position=UDim2.new(0,xpos,0,38)
+                    b.BackgroundColor3=color b.Text=text
+                    b.TextColor3=Color3.fromRGB(255,255,255)
+                    b.TextSize=12 b.Font=Enum.Font.GothamBold
+                    b.BorderSizePixel=0 b.ZIndex=21 b.Parent=popup
+                    Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
+                    b.MouseButton1Click:Connect(function()
+                        popup:Destroy()
+                        callback()
+                    end)
+                end
+                popBtn("Tween",  Color3.fromRGB(30,130,70),  10, doTweenTP)
+                popBtn("Bypass", Color3.fromRGB(130,70,30), 118, doBypassTP)
+
+                local cancelLbl=Instance.new("TextButton")
+                cancelLbl.Size=UDim2.new(1,-20,0,20) cancelLbl.Position=UDim2.new(0,10,0,86)
+                cancelLbl.BackgroundTransparency=1 cancelLbl.Text="[ Cancel ]"
+                cancelLbl.TextColor3=Color3.fromRGB(200,50,50) cancelLbl.TextSize=11
+                cancelLbl.Font=Enum.Font.Gotham cancelLbl.ZIndex=21 cancelLbl.Parent=popup
+                cancelLbl.MouseButton1Click:Connect(function() popup:Destroy() end)
+            end)
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList()
+
+-- =========================================================
+-- BUTTON WIRE-UP
+-- =========================================================
+FlyBtn.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+        setFlyState(false)
+        notify("Nether6029 Hub", "Fly disabled.", 2)
+    else
+        startFly()
+        setFlyState(true)
+        notify("Nether6029 Hub", "Fly enabled!  WASD + Space/LShift", 3)
+    end
+end)
+
+FlySpeedBox.FocusLost:Connect(function()
+    local n = tonumber(FlySpeedBox.Text)
+    if n then
+        flySpeed = math.clamp(n,1,500)
+        FlySpeedLbl.Text = "Fly Speed: " .. flySpeed
+        FlySpeedBox.Text = tostring(flySpeed)
+    else
+        FlySpeedBox.Text = tostring(flySpeed)
+    end
+end)
+
+WalkSpeedBox.FocusLost:Connect(function()
+    local n = tonumber(WalkSpeedBox.Text)
+    if n then
+        walkSpeed = math.clamp(n,16,500)
+        WalkSpeedLbl.Text = "Walk Speed: " .. walkSpeed
+        WalkSpeedBox.Text = tostring(walkSpeed)
+    else
+        WalkSpeedBox.Text = tostring(walkSpeed)
+    end
+end)
+
+FreezeBtn.MouseButton1Click:Connect(function()
+    if frozen then
+        disableFreeze()
+        setFreezeState(false)
+        notify("Nether6029 Hub", "Freeze disabled.", 2)
+    else
+        enableFreeze()
+        setFreezeState(true)
+        notify("Nether6029 Hub", "Freeze ON – you're locked in place.", 3)
+    end
+end)
+
+NoclipBtn.MouseButton1Click:Connect(function()
+    if noclip then
+        disableNoclip()
+        setNoclipState(false)
+        notify("Nether6029 Hub", "Noclip disabled.", 2)
+    else
+        enableNoclip()
+        setNoclipState(true)
+        notify("Nether6029 Hub", "Noclip ON – walk through walls!", 3)
+    end
+end)
+
+EspBtn.MouseButton1Click:Connect(function()
+    espActive = not espActive
+    setEspState(espActive)
+    if espActive then
+        for _, p in pairs(Players:GetPlayers()) do createESP(p) end
+        notify("Nether6029 Hub", "ESP enabled – tracking all players.", 3)
+    else
+        notify("Nether6029 Hub", "ESP disabled.", 2)
+    end
+end)
+
+TweenTPBtn.MouseButton1Click:Connect(doTweenTP)
+BypassTPBtn.MouseButton1Click:Connect(doBypassTP)
+StopTPBtn.MouseButton1Click:Connect(stopAllTeleports)
+
+-- =========================================================
+-- NUMPAD HOTKEYS
+-- =========================================================
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+
+    -- Numpad 0 – Hide/Show GUI
+    if input.KeyCode == Enum.KeyCode.KeypadZero then
+        guiVisible = not guiVisible
+        MainFrame.Visible = guiVisible
+        notify("Nether6029 Hub", guiVisible and "GUI shown." or "GUI hidden.  Numpad0 to restore.", 2)
+
+    -- Numpad 1 – Toggle Fly
+    elseif input.KeyCode == Enum.KeyCode.KeypadOne then
+        if flying then
+            stopFly() setFlyState(false)
+            notify("Nether6029 Hub","Fly OFF",2)
+        else
+            startFly() setFlyState(true)
+            notify("Nether6029 Hub","Fly ON",2)
+        end
+
+    -- Numpad 2 – Toggle Freeze
+    elseif input.KeyCode == Enum.KeyCode.KeypadTwo then
+        if frozen then
+            disableFreeze() setFreezeState(false)
+            notify("Nether6029 Hub","Freeze OFF",2)
+        else
+            enableFreeze() setFreezeState(true)
+            notify("Nether6029 Hub","Freeze ON",2)
+        end
+
+    -- Numpad 3 – Toggle Noclip
+    elseif input.KeyCode == Enum.KeyCode.KeypadThree then
+        if noclip then
+            disableNoclip() setNoclipState(false)
+            notify("Nether6029 Hub","Noclip OFF",2)
+        else
+            enableNoclip() setNoclipState(true)
+            notify("Nether6029 Hub","Noclip ON",2)
+        end
+
+    -- Numpad 4 – Toggle ESP
+    elseif input.KeyCode == Enum.KeyCode.KeypadFour then
+        espActive = not espActive
+        setEspState(espActive)
+        if espActive then
+            for _, p in pairs(Players:GetPlayers()) do createESP(p) end
+            notify("Nether6029 Hub","ESP ON",2)
+        else
+            notify("Nether6029 Hub","ESP OFF",2)
+        end
+
+    -- Numpad 5 – Tween TP
+    elseif input.KeyCode == Enum.KeyCode.KeypadFive then
+        doTweenTP()
+
+    -- Numpad 6 – Bypass TP
+    elseif input.KeyCode == Enum.KeyCode.KeypadSix then
+        doBypassTP()
+    end
+end)
+
+-- =========================================================
+-- CONTINUOUS LOOPS
+-- =========================================================
+
+-- WalkSpeed enforcer
+RunService.RenderStepped:Connect(function()
+    local character = Player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if humanoid and not frozen then
+        humanoid.WalkSpeed = walkSpeed
+    end
+end)
+
+-- Anti-cheat velocity bypass
+RunService.Heartbeat:Connect(function()
+    if Player.Character and (flying or frozen) then
+        local root = Player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            if frozen then
+                root.AssemblyLinearVelocity  = Vector3.new(0,0,0)
+                root.AssemblyAngularVelocity = Vector3.new(0,0,0)
+            elseif flying then
+                local v = root.AssemblyLinearVelocity
+                root.AssemblyLinearVelocity = Vector3.new(v.X,0,v.Z)
+            end
+        end
+    end
+end)
+
+-- Advanced noclip bypass
+RunService.RenderStepped:Connect(function()
+    if noclip and Player.Character then
+        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Physics) end
+        for _, part in pairs(Player.Character:GetChildren()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
+end)
+
+-- =========================================================
+-- RESPAWN HANDLER
+-- =========================================================
+Player.CharacterAdded:Connect(function(char)
+    stopFly()
+    disableFreeze()
+    disableNoclip()
+    frozen  = false
+    noclip  = false
+    flying  = false
+
+    setFlyState(false)
+    setFreezeState(false)
+    setNoclipState(false)
+
+    -- WalkSpeed hook on new character
+    local humanoid = char:WaitForChild("Humanoid")
+    humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if humanoid.WalkSpeed ~= walkSpeed and not frozen and not flying then
+            humanoid.WalkSpeed = walkSpeed
+        end
+    end)
+
+    updatePlayerList()
+end)
+
+-- Players joining during session
+Players.PlayerAdded:Connect(function(p)
+    if espActive then createESP(p) end
+    updatePlayerList()
+end)
+
+-- =========================================================
+-- STARTUP NOTIFICATION
+-- =========================================================
+notify(
+    "⚡ Nether6029 Hub V2 Loaded",
+    "All features active!\nNumpad 0 = Hide GUI | Num1=Fly | Num2=Freeze | Num3=Noclip | Num4=ESP | Num5/6=TP",
+    7
+)
