@@ -1,0 +1,816 @@
+-- =========================================================
+-- Part 1: Notification and Main GUI Setup (NETHER6029 HUB)
+-- =========================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+
+local Player = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- 1. Notification
+StarterGui:SetCore("SendNotification", {
+    Title = "Nether6029 Script",
+    Text = "Sub to Nether6029! | Send Screenshot to him email for an advanced script with features of Quantum Hub, Redz Hub, and also troll players insta kill them auto combo with build checker.",
+    Duration = 5,
+    Button1 = "Okay"
+})
+
+-- 2. Main GUI Screen and Frame
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Nether6029_Hub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 260, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -130, 0.4, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Title.Text = "Nether6029 Hub"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = Title
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 16
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Parent = MainFrame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 5)
+CloseCorner.Parent = CloseButton
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- =========================================================
+-- Part 2: Camera-Direction Based Fly and Freeze System
+-- =========================================================
+
+local flying = false
+local flySpeed = 50
+local walkSpeed = 16
+local frozen = false
+
+local ctrl = {f = 0, b = 0, l = 0, r = 0}
+local bg = nil
+local bv = nil
+
+-- Camera Follow Fly Logic
+local function startFly()
+    local character = Player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    local root = character.HumanoidRootPart
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    flying = true
+    humanoid.PlatformStand = true
+
+    bg = Instance.new("BodyGyro")
+    bg.P = 9e4
+    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.cframe = root.CFrame
+    bg.Parent = root
+
+    bv = Instance.new("BodyVelocity")
+    bv.velocity = Vector3.new(0, 0.1, 0)
+    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Parent = root
+
+    task.spawn(function()
+        while flying do
+            task.wait()
+            if not character or not character:FindFirstChild("HumanoidRootPart") then break end
+            humanoid.PlatformStand = true
+            
+            -- Calculation for movement direction
+            local moveDirection = Vector3.new(0, 0, 0)
+            
+            if ctrl.f == 1 then -- Go in precise camera direction when W is pressed
+                moveDirection = moveDirection + Camera.CFrame.LookVector
+            end
+            if ctrl.b == -1 then -- Go backward when S is pressed
+                moveDirection = moveDirection - Camera.CFrame.LookVector
+            end
+            if ctrl.l == -1 then -- Go left when A is pressed
+                moveDirection = moveDirection - Camera.CFrame.RightVector
+            end
+            if ctrl.r == 1 then -- Go right when D is pressed
+                moveDirection = moveDirection + Camera.CFrame.RightVector
+            end
+            
+            -- If a button is pressed set velocity, otherwise hold in air
+            if moveDirection.Magnitude > 0 then
+                bv.velocity = moveDirection.Unit * flySpeed
+            else
+                bv.velocity = Vector3.new(0, 0.1, 0)
+            end
+            
+            bg.cframe = Camera.CFrame
+        end
+        
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+        if humanoid then humanoid.PlatformStand = false end
+    end)
+end
+
+local function stopFly()
+    flying = false
+end
+
+-- Keyboard Input Tracker
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
+    elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
+    elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
+    elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1 end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
+    elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
+    elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
+    elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0 end
+end)
+
+-- UI Fly Button
+local FlyButton = Instance.new("TextButton")
+FlyButton.Size = UDim2.new(0, 220, 0, 40)
+FlyButton.Position = UDim2.new(0, 20, 0, 55)
+FlyButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+FlyButton.Text = "Fly: OFF"
+FlyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlyButton.Font = Enum.Font.SourceSansBold
+FlyButton.TextSize = 16
+FlyButton.Parent = MainFrame
+Instance.new("UICorner", FlyButton).CornerRadius = UDim.new(0, 5)
+
+FlyButton.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+        FlyButton.Text = "Fly: OFF"
+        FlyButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    else
+        startFly()
+        FlyButton.Text = "Fly: ON"
+        FlyButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+    end
+end)
+
+-- UI Freeze Button (Bypass)
+local FreezeButton = Instance.new("TextButton")
+FreezeButton.Size = UDim2.new(0, 220, 0, 40)
+FreezeButton.Position = UDim2.new(0, 20, 0, 105)
+FreezeButton.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+FreezeButton.Text = "Freeze Me: OFF"
+FreezeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FreezeButton.Font = Enum.Font.SourceSansBold
+FreezeButton.TextSize = 16
+FreezeButton.Parent = MainFrame
+Instance.new("UICorner", FreezeButton).CornerRadius = UDim.new(0, 5)
+
+local freezeConnection
+local freezePos
+
+FreezeButton.MouseButton1Click:Connect(function()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    frozen = not frozen
+    if frozen then
+        FreezeButton.Text = "Freeze Me: ON"
+        FreezeButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        freezePos = root.CFrame
+        
+        freezeConnection = RunService.Heartbeat:Connect(function()
+            if root and frozen then
+                root.CFrame = freezePos
+                root.Velocity = Vector3.new(0,0,0)
+                root.RotVelocity = Vector3.new(0,0,0)
+            end
+        end)
+    else
+        FreezeButton.Text = "Freeze Me: OFF"
+        FreezeButton.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+        if freezeConnection then freezeConnection:Disconnect() end
+    end
+end)
+
+-- =========================================================
+-- Part 3: Speed Sliders and Respawn Handler (Sliders & Loops)
+-- =========================================================
+
+-- Fly Speed Slider UI
+local FlySliderLabel = Instance.new("TextLabel")
+FlySliderLabel.Size = UDim2.new(0, 220, 0, 20)
+FlySliderLabel.Position = UDim2.new(0, 20, 0, 160)
+FlySliderLabel.BackgroundTransparency = 1
+FlySliderLabel.Text = "Fly Speed: 50"
+FlySliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlySliderLabel.Font = Enum.Font.SourceSans
+FlySliderLabel.TextSize = 14
+FlySliderLabel.Parent = MainFrame
+
+local FlySlider = Instance.new("TextBox")
+FlySlider.Size = UDim2.new(0, 220, 0, 25)
+FlySlider.Position = UDim2.new(0, 20, 0, 185)
+FlySlider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+FlySlider.Text = "50"
+FlySlider.TextColor3 = Color3.fromRGB(0, 255, 255)
+FlySlider.Font = Enum.Font.SourceSansBold
+FlySlider.TextSize = 14
+FlySlider.PlaceholderText = "Enter Fly Speed (1-500)"
+FlySlider.Parent = MainFrame
+Instance.new("UICorner", FlySlider).CornerRadius = UDim.new(0, 5)
+
+FlySlider.FocusLost:Connect(function()
+    local num = tonumber(FlySlider.Text)
+    if num then
+        flySpeed = math.clamp(num, 1, 500)
+        FlySliderLabel.Text = "Fly Speed: " .. tostring(flySpeed)
+    else
+        FlySlider.Text = tostring(flySpeed)
+    end
+end)
+
+-- WalkSpeed Slider UI
+local WalkSliderLabel = Instance.new("TextLabel")
+WalkSliderLabel.Size = UDim2.new(0, 220, 0, 20)
+WalkSliderLabel.Position = UDim2.new(0, 20, 0, 225)
+WalkSliderLabel.BackgroundTransparency = 1
+WalkSliderLabel.Text = "Walk Speed: 16"
+WalkSliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+WalkSliderLabel.Font = Enum.Font.SourceSans
+WalkSliderLabel.TextSize = 14
+WalkSliderLabel.Parent = MainFrame
+
+local WalkSlider = Instance.new("TextBox")
+WalkSlider.Size = UDim2.new(0, 220, 0, 25)
+WalkSlider.Position = UDim2.new(0, 20, 0, 250)
+WalkSlider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+WalkSlider.Text = "16"
+WalkSlider.TextColor3 = Color3.fromRGB(0, 255, 255)
+WalkSlider.Font = Enum.Font.SourceSansBold
+WalkSlider.TextSize = 14
+WalkSlider.PlaceholderText = "Enter Walk Speed (16-500)"
+WalkSlider.Parent = MainFrame
+Instance.new("UICorner", WalkSlider).CornerRadius = UDim.new(0, 5)
+
+-- Continuous WalkSpeed Loop
+RunService.RenderStepped:Connect(function()
+    local character = Player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if humanoid and not frozen then
+        humanoid.WalkSpeed = walkSpeed
+    end
+end)
+
+WalkSlider.FocusLost:Connect(function()
+    local num = tonumber(WalkSlider.Text)
+    if num then
+        walkSpeed = math.clamp(num, 16, 500)
+        WalkSliderLabel.Text = "Walk Speed: " .. tostring(walkSpeed)
+    else
+        WalkSlider.Text = tostring(walkSpeed)
+    end
+end)
+
+-- Player Respawn Handler
+Player.CharacterAdded:Connect(function(char)
+    stopFly()
+    frozen = false
+    FlyButton.Text = "Fly: OFF"
+    FlyButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    FreezeButton.Text = "Freeze Me: OFF"
+    FreezeButton.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+    if freezeConnection then freezeConnection:Disconnect() end
+end)
+
+-- =========================================================
+-- Part 4: No-Clip System (No-Clip Option)
+-- =========================================================
+
+local noclip = false
+local noclipConnection = nil
+
+-- Adding Noclip button to UI
+local NoclipButton = Instance.new("TextButton")
+NoclipButton.Name = "NoclipButton"
+NoclipButton.Size = UDim2.new(0, 220, 0, 40)
+NoclipButton.Position = UDim2.new(0, 20, 0, 290) 
+NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 150)
+NoclipButton.Text = "Noclip: OFF"
+NoclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+NoclipButton.Font = Enum.Font.SourceSansBold
+NoclipButton.TextSize = 16
+NoclipButton.Parent = MainFrame
+
+local NoclipCorner = Instance.new("UICorner")
+NoclipCorner.CornerRadius = UDim.new(0, 5)
+NoclipCorner.Parent = NoclipButton
+
+-- Enlarging the MainFrame to fit new button
+MainFrame.Size = UDim2.new(0, 260, 0, 350)
+
+-- Noclip Logic (with Anti-Cheat Bypass)
+local function toggleNoclip()
+    noclip = not noclip
+    
+    if noclip then
+        NoclipButton.Text = "Noclip: ON"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        
+        -- Disable character collision on every frame
+        noclipConnection = RunService.Stepped:Connect(function()
+            if noclip and Player.Character then
+                for _, part in pairs(Player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide == true then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        NoclipButton.Text = "Noclip: OFF"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 150)
+        
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
+end
+
+NoclipButton.MouseButton1Click:Connect(toggleNoclip)
+
+-- Noclip cleanup on player respawn
+Player.CharacterAdded:Connect(function(char)
+    noclip = false
+    NoclipButton.Text = "Noclip: OFF"
+    NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 150)
+    if noclipConnection then 
+        noclipConnection:Disconnect() 
+        noclipConnection = nil
+    end
+end)
+
+-- =========================================================
+-- Part 5: Anti-Cheat Bypass Enhancement (Advanced Bypass)
+-- =========================================================
+
+-- 1. No-Clip Detection Avoidance
+local function advancedNoclipBypass()
+    RunService.RenderStepped:Connect(function()
+        if noclip and Player.Character then
+            -- Changing Humanoid state so engine thinks it's falling
+            local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            end
+            
+            -- Setting only necessary parts to non-collidable
+            for _, part in pairs(Player.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+task.spawn(advancedNoclipBypass)
+
+-- 2. Network Ownership and Velocity Bypass
+local function velocityBypass()
+    RunService.Heartbeat:Connect(function()
+        if Player.Character and (flying or frozen) then
+            local root = Player.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                -- Controlling assembly velocity to avoid server alerts
+                local currentVel = root.AssemblyLinearVelocity
+                if frozen then
+                    root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                elseif flying then
+                    -- Prevent falling speed during flight
+                    root.AssemblyLinearVelocity = Vector3.new(currentVel.X, 0, currentVel.Z)
+                end
+            end
+        end
+    end)
+end
+task.spawn(velocityBypass)
+
+-- 3. WalkSpeed Anti-Reset
+local function setupSpeedHook()
+    Player.CharacterAdded:Connect(function(char)
+        local humanoid = char:WaitForChild("Humanoid")
+        humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+            if humanoid.WalkSpeed ~= walkSpeed and not frozen and not flying then
+                humanoid.WalkSpeed = walkSpeed
+            end
+        end)
+    end)
+end
+task.spawn(setupSpeedHook)
+
+-- =========================================================
+-- Part 6: Player Teleport System
+-- =========================================================
+
+local TweenService = game:GetService("TweenService")
+local currentTween = nil
+local isTpLoopActive = false 
+
+-- Adjusting UI size
+MainFrame.Size = UDim2.new(0, 260, 0, 480)
+
+local PlayerTextBox = Instance.new("TextBox")
+PlayerTextBox.Size = UDim2.new(0, 220, 0, 30)
+PlayerTextBox.Position = UDim2.new(0, 20, 0, 340)
+PlayerTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+PlayerTextBox.Text = ""
+PlayerTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayerTextBox.Font = Enum.Font.SourceSans
+PlayerTextBox.TextSize = 14
+PlayerTextBox.PlaceholderText = "Enter Target Player Name..."
+PlayerTextBox.Parent = MainFrame
+Instance.new("UICorner", PlayerTextBox).CornerRadius = UDim.new(0, 5)
+
+local function getTargetPlayer()
+    local text = PlayerTextBox.Text:lower()
+    if text == "" then return nil end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player and (p.Name:lower():sub(1, #text) == text or p.DisplayName:lower():sub(1, #text) == text) then
+            return p
+        end
+    end
+    return nil
+end
+
+local function stopAllTeleports()
+    isTpLoopActive = false 
+    
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
+    
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root then
+        root.Velocity = Vector3.new(0, 0, 0)
+        if root:FindFirstChild("TP_Float") then root.TP_Float:Destroy() end
+        
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "TP_Float"
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.velocity = Vector3.new(0, 0, 0)
+        bv.Parent = root
+        task.delay(0.5, function() if bv then bv:Destroy() end end)
+    end
+end
+
+-- Tween TP Button
+local TweenButton = Instance.new("TextButton")
+TweenButton.Size = UDim2.new(0, 105, 0, 35)
+TweenButton.Position = UDim2.new(0, 20, 0, 380)
+TweenButton.BackgroundColor3 = Color3.fromRGB(40, 140, 80)
+TweenButton.Text = "Tween TP"
+TweenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TweenButton.Font = Enum.Font.SourceSansBold
+TweenButton.TextSize = 14
+TweenButton.Parent = MainFrame
+Instance.new("UICorner", TweenButton).CornerRadius = UDim.new(0, 5)
+
+TweenButton.MouseButton1Click:Connect(function()
+    stopAllTeleports()
+    local target = getTargetPlayer()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and root then
+        local targetRoot = target.Character.HumanoidRootPart
+        
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "TP_Float"
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.velocity = Vector3.new(0, 0, 0)
+        bv.Parent = root
+        
+        local distance = (root.Position - targetRoot.Position).Magnitude
+        local duration = distance / 45
+        
+        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+        currentTween = TweenService:Create(root, tweenInfo, {CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)})
+        currentTween:Play()
+        currentTween.Completed:Connect(function() if bv then bv:Destroy() end end)
+    end
+end)
+
+-- Bypass TP Button
+local BypassButton = Instance.new("TextButton")
+BypassButton.Size = UDim2.new(0, 105, 0, 35)
+BypassButton.Position = UDim2.new(0, 135, 0, 380)
+BypassButton.BackgroundColor3 = Color3.fromRGB(140, 80, 40)
+BypassButton.Text = "Bypass TP"
+BypassButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+BypassButton.Font = Enum.Font.SourceSansBold
+BypassButton.TextSize = 14
+BypassButton.Parent = MainFrame
+Instance.new("UICorner", BypassButton).CornerRadius = UDim.new(0, 5)
+
+BypassButton.MouseButton1Click:Connect(function()
+    stopAllTeleports()
+    local target = getTargetPlayer()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and root then
+        isTpLoopActive = true
+        local targetRoot = target.Character.HumanoidRootPart
+        local startPos = root.Position
+        local endPos = targetRoot.Position
+        local diff = endPos - startPos
+        local steps = math.floor(diff.Magnitude / 25)
+        
+        task.spawn(function()
+            for i = 1, steps do
+                if not isTpLoopActive or not root or not targetRoot then break end
+                root.CFrame = CFrame.new(startPos + (diff.Unit * (i * 25)))
+                root.Velocity = Vector3.new(0, 0, 0)
+                RunService.Heartbeat:Wait()
+            end
+            if isTpLoopActive and root and targetRoot then
+                root.CFrame = targetRoot.CFrame + Vector3.new(0, 2, 0)
+            end
+        end)
+    end
+end)
+
+-- Stop TP Button
+local StopTPButton = Instance.new("TextButton")
+StopTPButton.Size = UDim2.new(0, 220, 0, 35)
+StopTPButton.Position = UDim2.new(0, 20, 0, 425)
+StopTPButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+StopTPButton.Text = "STOP TELEPORT"
+StopTPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopTPButton.Font = Enum.Font.SourceSansBold
+StopTPButton.TextSize = 14
+StopTPButton.Parent = MainFrame
+Instance.new("UICorner", StopTPButton).CornerRadius = UDim.new(0, 5)
+
+StopTPButton.MouseButton1Click:Connect(stopAllTeleports)
+
+-- =========================================================
+-- Part 7: Player List and Pop-up Notification
+-- =========================================================
+
+-- Expanding UI to fit list
+MainFrame.Size = UDim2.new(0, 260, 0, 600)
+
+local PlayerListFrame = Instance.new("ScrollingFrame")
+PlayerListFrame.Name = "PlayerListFrame"
+PlayerListFrame.Size = UDim2.new(0, 220, 0, 100)
+PlayerListFrame.Position = UDim2.new(0, 20, 0, 475)
+PlayerListFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+PlayerListFrame.BorderSizePixel = 0
+PlayerListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+PlayerListFrame.ScrollBarThickness = 6
+PlayerListFrame.Parent = MainFrame
+Instance.new("UICorner", PlayerListFrame).CornerRadius = UDim.new(0, 5)
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = PlayerListFrame
+UIListLayout.SortOrder = Enum.SortOrder.Name
+UIListLayout.Padding = UDim.new(0, 4)
+
+local function updatePlayerList()
+    -- Clearing old list
+    for _, child in pairs(PlayerListFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    -- Adding buttons for all players
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player then
+            local PButton = Instance.new("TextButton")
+            PButton.Size = UDim2.new(1, -10, 0, 25)
+            PButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            PButton.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+            PButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+            PButton.TextSize = 12
+            PButton.Font = Enum.Font.SourceSans
+            PButton.Parent = PlayerListFrame
+            Instance.new("UICorner", PButton).CornerRadius = UDim.new(0, 4)
+            
+            -- Confirmation GUI when clicking a player
+            PButton.MouseButton1Click:Connect(function()
+                PlayerTextBox.Text = p.Name
+                
+                local ChoiceFrame = Instance.new("Frame")
+                ChoiceFrame.Size = UDim2.new(0, 200, 0, 100)
+                ChoiceFrame.Position = UDim2.new(0.5, -100, 0.5, -50)
+                ChoiceFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                ChoiceFrame.ZIndex = 10
+                ChoiceFrame.Parent = ScreenGui
+                Instance.new("UICorner", ChoiceFrame).CornerRadius = UDim.new(0, 8)
+                
+                local ChoiceTitle = Instance.new("TextLabel")
+                ChoiceTitle.Size = UDim2.new(1, 0, 0, 30)
+                ChoiceTitle.Text = "Choose TP Method for " .. p.Name
+                ChoiceTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+                ChoiceTitle.TextSize = 12
+                ChoiceTitle.Font = Enum.Font.SourceSansBold
+                ChoiceTitle.BackgroundTransparency = 1
+                ChoiceTitle.ZIndex = 10
+                ChoiceTitle.Parent = ChoiceFrame
+                
+                -- Tween button option
+                local ChoiceTween = Instance.new("TextButton")
+                ChoiceTween.Size = UDim2.new(0, 85, 0, 30)
+                ChoiceTween.Position = UDim2.new(0, 10, 0, 45)
+                ChoiceTween.BackgroundColor3 = Color3.fromRGB(40, 140, 80)
+                ChoiceTween.Text = "Tween"
+                ChoiceTween.TextColor3 = Color3.fromRGB(255, 255, 255)
+                ChoiceTween.ZIndex = 10
+                ChoiceTween.Parent = ChoiceFrame
+                Instance.new("UICorner", ChoiceTween).CornerRadius = UDim.new(0, 4)
+                
+                ChoiceTween.MouseButton1Click:Connect(function()
+                    ChoiceFrame:Destroy()
+                    TweenButton.MouseButton1Click:Fire() 
+                end)
+                
+                -- Bypass button option
+                local ChoiceBypass = Instance.new("TextButton")
+                ChoiceBypass.Size = UDim2.new(0, 85, 0, 30)
+                ChoiceBypass.Position = UDim2.new(0, 105, 0, 45)
+                ChoiceBypass.BackgroundColor3 = Color3.fromRGB(140, 80, 40)
+                ChoiceBypass.Text = "Bypass"
+                ChoiceBypass.TextColor3 = Color3.fromRGB(255, 255, 255)
+                ChoiceBypass.ZIndex = 10
+                ChoiceBypass.Parent = ChoiceFrame
+                Instance.new("UICorner", ChoiceBypass).CornerRadius = UDim.new(0, 4)
+                
+                ChoiceBypass.MouseButton1Click:Connect(function()
+                    ChoiceFrame:Destroy()
+                    BypassButton.MouseButton1Click:Fire()
+                end)
+                
+                -- Cancel button
+                local ChoiceCancel = Instance.new("TextButton")
+                ChoiceCancel.Size = UDim2.new(1, -20, 0, 15)
+                ChoiceCancel.Position = UDim2.new(0, 10, 0, 80)
+                ChoiceCancel.BackgroundTransparency = 1
+                ChoiceCancel.Text = "[ Cancel ]"
+                ChoiceCancel.TextColor3 = Color3.fromRGB(200, 50, 50)
+                ChoiceCancel.TextSize = 11
+                ChoiceCancel.ZIndex = 10
+                ChoiceCancel.Parent = ChoiceFrame
+                
+                ChoiceCancel.MouseButton1Click:Connect(function()
+                    ChoiceFrame:Destroy()
+                end)
+            end)
+        end
+    end
+    
+    PlayerListFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+end
+
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList() 
+
+-- =========================================================
+-- Part 8: Blox Fruits ESP (Level + HP Tracker)
+-- =========================================================
+
+-- Increasing UI size
+MainFrame.Size = UDim2.new(0, 260, 0, 645)
+
+local espActive = false
+
+-- ESP ON/OFF button
+local EspButton = Instance.new("TextButton")
+EspButton.Size = UDim2.new(0, 220, 0, 35)
+EspButton.Position = UDim2.new(0, 20, 0, 585) 
+EspButton.BackgroundColor3 = Color3.fromRGB(75, 75, 150)
+EspButton.Text = "Player ESP: OFF"
+EspButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+EspButton.Font = Enum.Font.SourceSansBold
+EspButton.TextSize = 14
+EspButton.Parent = MainFrame
+Instance.new("UICorner", EspButton).CornerRadius = UDim.new(0, 5)
+
+-- Function to get Blox Fruits Level
+local function getBloxFruitsLevel(p)
+    if p:FindFirstChild("Data") and p.Data:FindFirstChild("Level") then
+        return p.Data.Level.Value
+    elseif p:FindFirstChild("leaderstats") and p.leaderstats:FindFirstChild("Level") then
+        return p.leaderstats.Level.Value
+    end
+    return "???"
+end
+
+-- ESP Creation logic
+local function createESP(p)
+    if p == Player then return end
+    
+    local function applyESP(character)
+        local head = character:WaitForChild("Head", 5)
+        if not head then return end
+        
+        if head:FindFirstChild("NetherESP") then head.NetherESP:Destroy() end
+        
+        local bbg = Instance.new("BillboardGui")
+        bbg.Name = "NetherESP"
+        bbg.Size = UDim2.new(0, 200, 0, 50)
+        bbg.AlwaysOnTop = true 
+        bbg.ExtentsOffset = Vector3.new(0, 3, 0)
+        bbg.Parent = head
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextSize = 13
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextStrokeTransparency = 0
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.Parent = bbg
+        
+        local espConnection
+        espConnection = RunService.Heartbeat:Connect(function()
+            if not espActive or not character or not character:FindFirstChild("Humanoid") or not head:FindFirstChild("NetherESP") then
+                if espConnection then espConnection:Disconnect() end
+                bbg:Destroy()
+                return
+            end
+            
+            local humanoid = character.Humanoid
+            local hp = math.floor(humanoid.Health)
+            local maxHp = math.floor(humanoid.MaxHealth)
+            local lvl = getBloxFruitsLevel(p)
+            
+            textLabel.Text = string.format("%s\n[Lv. %s] [HP: %d/%d]", p.DisplayName, tostring(lvl), hp, maxHp)
+            
+            local hpPercent = humanoid.Health / humanoid.MaxHealth
+            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255):Lerp(Color3.fromRGB(255, 50, 50), 1 - hpPercent)
+        end)
+    end
+    
+    if p.Character then task.spawn(function() applyESP(p.Character) end) end
+    p.CharacterAdded:Connect(applyESP)
+end
+
+EspButton.MouseButton1Click:Connect(function()
+    espActive = not espActive
+    if espActive then
+        EspButton.Text = "Player ESP: ON"
+        EspButton.BackgroundColor3 = Color3.fromRGB(150, 50, 150)
+        for _, p in pairs(Players:GetPlayers()) do
+            createESP(p)
+        end
+    else
+        EspButton.Text = "Player ESP: OFF"
+        EspButton.BackgroundColor3 = Color3.fromRGB(75, 75, 150)
+    end
+end)
+
+Players.PlayerAdded:Connect(function(p)
+    if espActive then createESP(p) end
+end)
