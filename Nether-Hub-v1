@@ -1,0 +1,836 @@
+-- =========================================================
+-- भाग 1: नोटिफिकेशन और मुख्य GUI सेटअप (NETHER6029 HUB)
+-- =========================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+
+local Player = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- 1. नोटिफिकेशन (Notification)
+StarterGui:SetCore("SendNotification", {
+    Title = "Nether6029 Script",
+    Text = "Sub to Nether6029! | Send Screenshot to him email for an advanced script with features of Quantum Hub, Redz Hub, and also troll players insta kill them auto combo with build checker.",
+    Duration = 5,
+    Button1 = "Okay"
+})
+
+-- 2. मुख्य GUI स्क्रीन और फ्रेम
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Nether6029_Hub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 260, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -130, 0.4, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Title.Text = "Nether6029 Hub"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = Title
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 16
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Parent = MainFrame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 5)
+CloseCorner.Parent = CloseButton
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+-- =========================================================
+-- भाग 2: कैमरा-दिशा आधारित फ्लाई और फ्रीज़ सिस्टम
+-- =========================================================
+
+local flying = false
+local flySpeed = 50
+local walkSpeed = 16
+local frozen = false
+
+local ctrl = {f = 0, b = 0, l = 0, r = 0}
+local bg = nil
+local bv = nil
+
+-- कैमरा फॉलो फ्लाई लॉजिक (Camera Direction Flying)
+local function startFly()
+    local character = Player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    local root = character.HumanoidRootPart
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    flying = true
+    humanoid.PlatformStand = true
+
+    bg = Instance.new("BodyGyro")
+    bg.P = 9e4
+    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.cframe = root.CFrame
+    bg.Parent = root
+
+    bv = Instance.new("BodyVelocity")
+    bv.velocity = Vector3.new(0, 0.1, 0)
+    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Parent = root
+
+    task.spawn(function()
+        while flying do
+            task.wait()
+            if not character or not character:FindFirstChild("HumanoidRootPart") then break end
+            humanoid.PlatformStand = true
+            
+            -- मूवमेंट दिशा की गणना (कैलकुलेशन)
+            local moveDirection = Vector3.new(0, 0, 0)
+            
+            if ctrl.f == 1 then -- W दबाने पर कैमरे की सटीक दिशा में जाना
+                moveDirection = moveDirection + Camera.CFrame.LookVector
+            end
+            if ctrl.b == -1 then -- S दबाने पर पीछे जाना
+                moveDirection = moveDirection - Camera.CFrame.LookVector
+            end
+            if ctrl.l == -1 then -- A दबाने पर बाएँ जाना
+                moveDirection = moveDirection - Camera.CFrame.RightVector
+            end
+            if ctrl.r == 1 then -- D दबाने पर दाएँ जाना
+                moveDirection = moveDirection + Camera.CFrame.RightVector
+            end
+            
+            -- यदि कोई बटन दबाया है तो वेलोसिटी सेट करें, अन्यथा हवा में रोक कर रखें
+            if moveDirection.Magnitude > 0 then
+                bv.velocity = moveDirection.Unit * flySpeed
+            else
+                bv.velocity = Vector3.new(0, 0.1, 0)
+            end
+            
+            bg.cframe = Camera.CFrame
+        end
+        
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+        if humanoid then humanoid.PlatformStand = false end
+    end)
+end
+
+local function stopFly()
+    flying = false
+end
+
+-- कीबोर्ड इनपुट ट्रैकर
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1
+    elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = -1
+    elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = -1
+    elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 1 end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0
+    elseif input.KeyCode == Enum.KeyCode.S then ctrl.b = 0
+    elseif input.KeyCode == Enum.KeyCode.A then ctrl.l = 0
+    elseif input.KeyCode == Enum.KeyCode.D then ctrl.r = 0 end
+end)
+
+-- UI फ्लाई बटन
+local FlyButton = Instance.new("TextButton")
+FlyButton.Size = UDim2.new(0, 220, 0, 40)
+FlyButton.Position = UDim2.new(0, 20, 0, 55)
+FlyButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+FlyButton.Text = "Fly: OFF"
+FlyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlyButton.Font = Enum.Font.SourceSansBold
+FlyButton.TextSize = 16
+FlyButton.Parent = MainFrame
+Instance.new("UICorner", FlyButton).CornerRadius = UDim.new(0, 5)
+
+FlyButton.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+        FlyButton.Text = "Fly: OFF"
+        FlyButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    else
+        startFly()
+        FlyButton.Text = "Fly: ON"
+        FlyButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+    end
+end)
+
+-- UI फ्रीज़ बटन (Bypass)
+local FreezeButton = Instance.new("TextButton")
+FreezeButton.Size = UDim2.new(0, 220, 0, 40)
+FreezeButton.Position = UDim2.new(0, 20, 0, 105)
+FreezeButton.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+FreezeButton.Text = "Freeze Me: OFF"
+FreezeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FreezeButton.Font = Enum.Font.SourceSansBold
+FreezeButton.TextSize = 16
+FreezeButton.Parent = MainFrame
+Instance.new("UICorner", FreezeButton).CornerRadius = UDim.new(0, 5)
+
+local freezeConnection
+local freezePos
+
+FreezeButton.MouseButton1Click:Connect(function()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    frozen = not frozen
+    if frozen then
+        FreezeButton.Text = "Freeze Me: ON"
+        FreezeButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        freezePos = root.CFrame
+        
+        freezeConnection = RunService.Heartbeat:Connect(function()
+            if root and frozen then
+                root.CFrame = freezePos
+                root.Velocity = Vector3.new(0,0,0)
+                root.RotVelocity = Vector3.new(0,0,0)
+            end
+        end)
+    else
+        FreezeButton.Text = "Freeze Me: OFF"
+        FreezeButton.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+        if freezeConnection then freezeConnection:Disconnect() end
+    end
+end)
+-- =========================================================
+-- भाग 3: स्पीड स्लाइडर्स और रिस्पॉन हैंडलर (Sliders & Loops)
+-- =========================================================
+
+-- फ्लाई स्पीड स्लाइडर UI
+local FlySliderLabel = Instance.new("TextLabel")
+FlySliderLabel.Size = UDim2.new(0, 220, 0, 20)
+FlySliderLabel.Position = UDim2.new(0, 20, 0, 160)
+FlySliderLabel.BackgroundTransparency = 1
+FlySliderLabel.Text = "Fly Speed: 50"
+FlySliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlySliderLabel.Font = Enum.Font.SourceSans
+FlySliderLabel.TextSize = 14
+FlySliderLabel.Parent = MainFrame
+
+local FlySlider = Instance.new("TextBox")
+FlySlider.Size = UDim2.new(0, 220, 0, 25)
+FlySlider.Position = UDim2.new(0, 20, 0, 185)
+FlySlider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+FlySlider.Text = "50"
+FlySlider.TextColor3 = Color3.fromRGB(0, 255, 255)
+FlySlider.Font = Enum.Font.SourceSansBold
+FlySlider.TextSize = 14
+FlySlider.PlaceholderText = "Enter Fly Speed (1-500)"
+FlySlider.Parent = MainFrame
+Instance.new("UICorner", FlySlider).CornerRadius = UDim.new(0, 5)
+
+FlySlider.FocusLost:Connect(function()
+    local num = tonumber(FlySlider.Text)
+    if num then
+        flySpeed = math.clamp(num, 1, 500)
+        FlySliderLabel.Text = "Fly Speed: " .. tostring(flySpeed)
+    else
+        FlySlider.Text = tostring(flySpeed)
+    end
+end)
+
+-- वॉकस्पीड स्लाइडर UI
+local WalkSliderLabel = Instance.new("TextLabel")
+WalkSliderLabel.Size = UDim2.new(0, 220, 0, 20)
+WalkSliderLabel.Position = UDim2.new(0, 20, 0, 225)
+WalkSliderLabel.BackgroundTransparency = 1
+WalkSliderLabel.Text = "Walk Speed: 16"
+WalkSliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+WalkSliderLabel.Font = Enum.Font.SourceSans
+WalkSliderLabel.TextSize = 14
+WalkSliderLabel.Parent = MainFrame
+
+local WalkSlider = Instance.new("TextBox")
+WalkSlider.Size = UDim2.new(0, 220, 0, 25)
+WalkSlider.Position = UDim2.new(0, 20, 0, 250)
+WalkSlider.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+WalkSlider.Text = "16"
+WalkSlider.TextColor3 = Color3.fromRGB(0, 255, 255)
+WalkSlider.Font = Enum.Font.SourceSansBold
+WalkSlider.TextSize = 14
+WalkSlider.PlaceholderText = "Enter Walk Speed (16-500)"
+WalkSlider.Parent = MainFrame
+Instance.new("UICorner", WalkSlider).CornerRadius = UDim.new(0, 5)
+
+-- निरंतर वॉकस्पीड लूप
+RunService.RenderStepped:Connect(function()
+    local character = Player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if humanoid and not frozen then
+        humanoid.WalkSpeed = walkSpeed
+    end
+end)
+
+WalkSlider.FocusLost:Connect(function()
+    local num = tonumber(WalkSlider.Text)
+    if num then
+        walkSpeed = math.clamp(num, 16, 500)
+        WalkSliderLabel.Text = "Walk Speed: " .. tostring(walkSpeed)
+    else
+        WalkSlider.Text = tostring(walkSpeed)
+    end
+end)
+
+-- प्लेयर रिस्पॉन हैंडलर
+Player.CharacterAdded:Connect(function(char)
+    stopFly()
+    frozen = false
+    FlyButton.Text = "Fly: OFF"
+    FlyButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    FreezeButton.Text = "Freeze Me: OFF"
+    FreezeButton.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+    if freezeConnection then freezeConnection:Disconnect() end
+end)
+-- =========================================================
+-- भाग 4: नो-क्लिप सिस्टम (No-Clip Option)
+-- =========================================================
+
+local noclip = false
+local noclipConnection = nil
+
+-- UI में नो-क्लिप बटन जोड़ना
+local NoclipButton = Instance.new("TextButton")
+NoclipButton.Name = "NoclipButton"
+NoclipButton.Size = UDim2.new(0, 220, 0, 40)
+-- मेनू का आकार थोड़ा बड़ा करने के लिए इसकी पोजीशन सेट की गई है
+NoclipButton.Position = UDim2.new(0, 20, 0, 290) 
+NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 150)
+NoclipButton.Text = "Noclip: OFF"
+NoclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+NoclipButton.Font = Enum.Font.SourceSansBold
+NoclipButton.TextSize = 16
+NoclipButton.Parent = MainFrame
+
+local NoclipCorner = Instance.new("UICorner")
+NoclipCorner.CornerRadius = UDim.new(0, 5)
+NoclipCorner.Parent = NoclipButton
+
+-- पुराने MainFrame का आकार बड़ा करना ताकि नया बटन समा सके
+MainFrame.Size = UDim2.new(0, 260, 0, 350)
+
+-- नो-क्लिप का मुख्य लॉजिक (Anti-Cheat Bypass के साथ)
+local function toggleNoclip()
+    noclip = not noclip
+    
+    if noclip then
+        NoclipButton.Text = "Noclip: ON"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        
+        -- हर फ्रेम पर कैरेक्टर के अंगों की कोलिशन बंद करना
+        noclipConnection = RunService.Stepped:Connect(function()
+            if noclip and Player.Character then
+                for _, part in pairs(Player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide == true then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        NoclipButton.Text = "Noclip: OFF"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 150)
+        
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
+end
+
+NoclipButton.MouseButton1Click:Connect(toggleNoclip)
+
+-- प्लेयर रिस्पॉन होने पर नो-क्लिप रीसेट क्लीनअप (भाग 3 के क्लीनअप में जुड़ जाएगा)
+Player.CharacterAdded:Connect(function(char)
+    noclip = false
+    NoclipButton.Text = "Noclip: OFF"
+    NoclipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 150)
+    if noclipConnection then 
+        noclipConnection:Disconnect() 
+        noclipConnection = nil
+    end
+end)
+-- =========================================================
+-- भाग 5: एंटी-चीट बाईपास एन्हांसमेंट (Advanced Bypass)
+-- =========================================================
+
+-- 1. नो-क्लिप बाईपास (No-Clip Detection Avoidance)
+-- सामान्य नो-क्लिप को गेम डिटेक्ट कर लेते हैं, इसलिए यह तकनीक 
+-- केवल पैरों और धड़ के मुख्य हिस्से को छद्म तरीके से पास कराती है
+local function advancedNoclipBypass()
+    RunService.RenderStepped:Connect(function()
+        if noclip and Player.Character then
+            -- Humanoid का स्टेट बदलना ताकि गेम इंजन इसे 'गिरता हुआ' समझे
+            local humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            end
+            
+            -- केवल आवश्यक अंगों को पारगम्य (Non-collidable) बनाना
+            for _, part in pairs(Player.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+task.spawn(advancedNoclipBypass)
+
+-- 2. नेटवर्क ओनरशिप और वेलोसिटी बाईपास (Speed & Fly Anti-Rubberband)
+-- जब आप तेज़ी से उड़ते हैं या चलते हैं, तो सर्वर आपको वापस खींचता है (Rubberbanding)।
+-- यह फंक्शन लगातार कैरेक्टर की लीनियर वेलोसिटी को रीसेट करता है ताकि लॉग न बने।
+local function velocityBypass()
+    RunService.Heartbeat:Connect(function()
+        if Player.Character and (flying or frozen) then
+            local root = Player.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                -- असेंबली वेलोसिटी को नियंत्रित करना ताकि सर्वर अलर्ट ट्रिगर न हो
+                local currentVel = root.AssemblyLinearVelocity
+                if frozen then
+                    root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                elseif flying then
+                    -- फ्लाई के दौरान अचानक गिरने की गति को रोकना
+                    root.AssemblyLinearVelocity = Vector3.new(currentVel.X, 0, currentVel.Z)
+                end
+            end
+        end
+    end)
+end
+task.spawn(velocityBypass)
+
+-- 3. वॉकस्पीड रीसेट प्रिवेंशन (WalkSpeed Anti-Reset)
+-- कई गेम स्क्रिप्ट स्क्रिप्टेड स्पीड को हर सेकंड 16 पर बदल देती हैं।
+-- यह हुक (Hook) प्रॉपर्टी में होने वाले बदलावों को ओवरराइड करता है।
+local function setupSpeedHook()
+    Player.CharacterAdded:Connect(function(char)
+        local humanoid = char:WaitForChild("Humanoid")
+        humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+            if humanoid.WalkSpeed ~= walkSpeed and not frozen and not flying then
+                humanoid.WalkSpeed = walkSpeed
+            end
+        end)
+    end)
+end
+task.spawn(setupSpeedHook)
+-- =========================================================
+-- भाग 6: प्लेयर टेलीपोर्ट सिस्टम (फिक्स्ड स्टॉप और रीसेट के साथ)
+-- =========================================================
+
+local TweenService = game:GetService("TweenService")
+local currentTween = nil
+local isTpLoopActive = false -- लूप को पूरी तरह रोकने के लिए फ्लैग
+
+-- UI का साइज एडजस्टमेंट
+MainFrame.Size = UDim2.new(0, 260, 0, 480)
+
+local PlayerTextBox = Instance.new("TextBox")
+PlayerTextBox.Size = UDim2.new(0, 220, 0, 30)
+PlayerTextBox.Position = UDim2.new(0, 20, 0, 340)
+PlayerTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+PlayerTextBox.Text = ""
+PlayerTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayerTextBox.Font = Enum.Font.SourceSans
+PlayerTextBox.TextSize = 14
+PlayerTextBox.PlaceholderText = "Enter Target Player Name..."
+PlayerTextBox.Parent = MainFrame
+Instance.new("UICorner", PlayerTextBox).CornerRadius = UDim.new(0, 5)
+
+local function getTargetPlayer()
+    local text = PlayerTextBox.Text:lower()
+    if text == "" then return nil end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player and (p.Name:lower():sub(1, #text) == text or p.DisplayName:lower():sub(1, #text) == text) then
+            return p
+        end
+    end
+    return nil
+end
+
+-- पूर्ण रूप से काम करने वाला स्टॉप फंक्शन
+local function stopAllTeleports()
+    isTpLoopActive = false -- रनिंग बाईपास लूप को तुरंत ब्रेक करेगा
+    
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
+    
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root then
+        root.Velocity = Vector3.new(0, 0, 0)
+        -- अगर कोई पुराना फ्लोट हो तो उसे हटाएँ
+        if root:FindFirstChild("TP_Float") then root.TP_Float:Destroy() end
+        
+        -- रोकने के बाद नीचे गिरने से बचाने के लिए 0.5 सेकंड का फ्लोट
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "TP_Float"
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.velocity = Vector3.new(0, 0, 0)
+        bv.Parent = root
+        task.delay(0.5, function() if bv then bv:Destroy() end end)
+    end
+end
+
+-- Tween TP Button
+local TweenButton = Instance.new("TextButton")
+TweenButton.Size = UDim2.new(0, 105, 0, 35)
+TweenButton.Position = UDim2.new(0, 20, 0, 380)
+TweenButton.BackgroundColor3 = Color3.fromRGB(40, 140, 80)
+TweenButton.Text = "Tween TP"
+TweenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TweenButton.Font = Enum.Font.SourceSansBold
+TweenButton.TextSize = 14
+TweenButton.Parent = MainFrame
+Instance.new("UICorner", TweenButton).CornerRadius = UDim.new(0, 5)
+
+TweenButton.MouseButton1Click:Connect(function()
+    stopAllTeleports()
+    local target = getTargetPlayer()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and root then
+        local targetRoot = target.Character.HumanoidRootPart
+        
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "TP_Float"
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.velocity = Vector3.new(0, 0, 0)
+        bv.Parent = root
+        
+        local distance = (root.Position - targetRoot.Position).Magnitude
+        local duration = distance / 45
+        
+        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+        currentTween = TweenService:Create(root, tweenInfo, {CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)})
+        currentTween:Play()
+        currentTween.Completed:Connect(function() if bv then bv:Destroy() end end)
+    end
+end)
+
+-- Bypass TP Button
+local BypassButton = Instance.new("TextButton")
+BypassButton.Size = UDim2.new(0, 105, 0, 35)
+BypassButton.Position = UDim2.new(0, 135, 0, 380)
+BypassButton.BackgroundColor3 = Color3.fromRGB(140, 80, 40)
+BypassButton.Text = "Bypass TP"
+BypassButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+BypassButton.Font = Enum.Font.SourceSansBold
+BypassButton.TextSize = 14
+BypassButton.Parent = MainFrame
+Instance.new("UICorner", BypassButton).CornerRadius = UDim.new(0, 5)
+
+BypassButton.MouseButton1Click:Connect(function()
+    stopAllTeleports()
+    local target = getTargetPlayer()
+    local character = Player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and root then
+        isTpLoopActive = true
+        local targetRoot = target.Character.HumanoidRootPart
+        local startPos = root.Position
+        local endPos = targetRoot.Position
+        local diff = endPos - startPos
+        local steps = math.floor(diff.Magnitude / 25)
+        
+        task.spawn(function()
+            for i = 1, steps do
+                if not isTpLoopActive or not root or not targetRoot then break end
+                root.CFrame = CFrame.new(startPos + (diff.Unit * (i * 25)))
+                root.Velocity = Vector3.new(0, 0, 0)
+                RunService.Heartbeat:Wait()
+            end
+            if isTpLoopActive and root and targetRoot then
+                root.CFrame = targetRoot.CFrame + Vector3.new(0, 2, 0)
+            end
+        end)
+    end
+end)
+
+-- Stop TP Button
+local StopTPButton = Instance.new("TextButton")
+StopTPButton.Size = UDim2.new(0, 220, 0, 35)
+StopTPButton.Position = UDim2.new(0, 20, 0, 425)
+StopTPButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+StopTPButton.Text = "STOP TELEPORT"
+StopTPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopTPButton.Font = Enum.Font.SourceSansBold
+StopTPButton.TextSize = 14
+StopTPButton.Parent = MainFrame
+Instance.new("UICorner", StopTPButton).CornerRadius = UDim.new(0, 5)
+
+StopTPButton.MouseButton1Click:Connect(stopAllTeleports)
+-- =========================================================
+-- भाग 7: प्लेयर लिस्ट और पॉप-अप नोटिफिकेशन (Dropdown/List TP)
+-- =========================================================
+
+-- UI का आकार और बढ़ाना ताकि लिस्ट और प्लेयर्स समा सकें
+MainFrame.Size = UDim2.new(0, 260, 0, 600)
+
+-- स्क्रॉलिंग फ्रेम सेटअप (खिलाड़ियों की सूची के लिए)
+local PlayerListFrame = Instance.new("ScrollingFrame")
+PlayerListFrame.Name = "PlayerListFrame"
+PlayerListFrame.Size = UDim2.new(0, 220, 0, 100)
+PlayerListFrame.Position = UDim2.new(0, 20, 0, 475)
+PlayerListFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+PlayerListFrame.BorderSizePixel = 0
+PlayerListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+PlayerListFrame.ScrollBarThickness = 6
+PlayerListFrame.Parent = MainFrame
+Instance.new("UICorner", PlayerListFrame).CornerRadius = UDim.new(0, 5)
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = PlayerListFrame
+UIListLayout.SortOrder = Enum.SortOrder.Name
+UIListLayout.Padding = UDim.new(0, 4)
+
+-- लिस्ट के अंदर बटन बनाने और हटाने का फंक्शन
+local function updatePlayerList()
+    -- पुरानी लिस्ट साफ़ करना
+    for _, child in pairs(PlayerListFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    -- सभी प्लेयर्स के लिए बटन जोड़ना
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player then
+            local PButton = Instance.new("TextButton")
+            PButton.Size = UDim2.new(1, -10, 0, 25)
+            PButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            PButton.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+            PButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+            PButton.TextSize = 12
+            PButton.Font = Enum.Font.SourceSans
+            PButton.Parent = PlayerListFrame
+            Instance.new("UICorner", PButton).CornerRadius = UDim.new(0, 4)
+            
+            -- जब खिलाड़ी के नाम पर क्लिक हो (कस्टम पॉप-अप नोटिफिकेशन मेनू)
+            PButton.MouseButton1Click:Connect(function()
+                -- पुराने नाम बॉक्स में इसका नाम डाल दें ताकि बैकएंड लॉजिक काम करे
+                PlayerTextBox.Text = p.Name
+                
+                -- एक छोटा विकल्प पुष्टिकरण (Confirmation GUI) बनाना
+                local ChoiceFrame = Instance.new("Frame")
+                ChoiceFrame.Size = UDim2.new(0, 200, 0, 100)
+                ChoiceFrame.Position = UDim2.new(0.5, -100, 0.5, -50)
+                ChoiceFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                ChoiceFrame.ZIndex = 10
+                ChoiceFrame.Parent = ScreenGui
+                Instance.new("UICorner", ChoiceFrame).CornerRadius = UDim.new(0, 8)
+                
+                local ChoiceTitle = Instance.new("TextLabel")
+                ChoiceTitle.Size = UDim2.new(1, 0, 0, 30)
+                ChoiceTitle.Text = "Choose TP Method for " .. p.Name
+                ChoiceTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+                ChoiceTitle.TextSize = 12
+                ChoiceTitle.Font = Enum.Font.SourceSansBold
+                ChoiceTitle.BackgroundTransparency = 1
+                ChoiceTitle.ZIndex = 10
+                ChoiceTitle.Parent = ChoiceFrame
+                
+                -- ट्विन बटन विकल्प
+                local ChoiceTween = Instance.new("TextButton")
+                ChoiceTween.Size = UDim2.new(0, 85, 0, 30)
+                ChoiceTween.Position = UDim2.new(0, 10, 0, 45)
+                ChoiceTween.BackgroundColor3 = Color3.fromRGB(40, 140, 80)
+                ChoiceTween.Text = "Tween"
+                ChoiceTween.TextColor3 = Color3.fromRGB(255, 255, 255)
+                ChoiceTween.ZIndex = 10
+                ChoiceTween.Parent = ChoiceFrame
+                Instance.new("UICorner", ChoiceTween).CornerRadius = UDim.new(0, 4)
+                
+                ChoiceTween.MouseButton1Click:Connect(function()
+                    ChoiceFrame:Destroy()
+                    -- भाग 2 या 6 का Tween ट्रिगर करना
+                    TweenButton:Click() 
+                end)
+                
+                -- बाईपास बटन विकल्प
+                local ChoiceBypass = Instance.new("TextButton")
+                ChoiceBypass.Size = UDim2.new(0, 85, 0, 30)
+                ChoiceBypass.Position = UDim2.new(0, 105, 0, 45)
+                ChoiceBypass.BackgroundColor3 = Color3.fromRGB(140, 80, 40)
+                ChoiceBypass.Text = "Bypass"
+                ChoiceBypass.TextColor3 = Color3.fromRGB(255, 255, 255)
+                ChoiceBypass.ZIndex = 10
+                ChoiceBypass.Parent = ChoiceFrame
+                Instance.new("UICorner", ChoiceBypass).CornerRadius = UDim.new(0, 4)
+                
+                ChoiceBypass.MouseButton1Click:Connect(function()
+                    ChoiceFrame:Destroy()
+                    -- भाग 6 का Bypass ट्रिगर करना
+                    BypassButton:Click()
+                end)
+                
+                -- रद्द (Cancel) करने का बटन
+                local ChoiceCancel = Instance.new("TextButton")
+                ChoiceCancel.Size = UDim2.new(1, -20, 0, 15)
+                ChoiceCancel.Position = UDim2.new(0, 10, 0, 80)
+                ChoiceCancel.BackgroundTransparency = 1
+                ChoiceCancel.Text = "[ Cancel ]"
+                ChoiceCancel.TextColor3 = Color3.fromRGB(200, 50, 50)
+                ChoiceCancel.TextSize = 11
+                ChoiceCancel.ZIndex = 10
+                ChoiceCancel.Parent = ChoiceFrame
+                
+                ChoiceCancel.MouseButton1Click:Connect(function()
+                    ChoiceFrame:Destroy()
+                end)
+            end)
+        end
+    end
+    
+    -- स्क्रॉल बार की लम्बाई सेट करना
+    PlayerListFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+end
+
+-- नए प्लेयर्स के आने या जाने पर लिस्ट ऑटो-अपडेट करना
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList() -- पहली बार लोड होने पर लिस्ट बनाना
+-- =========================================================
+-- भाग 8: Blox Fruits ESP (Level + HP Tracker)
+-- =========================================================
+
+-- UI का आकार और बढ़ाना
+MainFrame.Size = UDim2.new(0, 260, 0, 645)
+
+local espActive = false
+
+-- UI में ESP ऑन/ऑफ बटन
+local EspButton = Instance.new("TextButton")
+EspButton.Size = UDim2.new(0, 220, 0, 35)
+EspButton.Position = UDim2.new(0, 20, 0, 585) -- लिस्ट फ्रेम के नीचे सेट किया गया
+EspButton.BackgroundColor3 = Color3.fromRGB(75, 75, 150)
+EspButton.Text = "Player ESP: OFF"
+EspButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+EspButton.Font = Enum.Font.SourceSansBold
+EspButton.TextSize = 14
+EspButton.Parent = MainFrame
+Instance.new("UICorner", EspButton).CornerRadius = UDim.new(0, 5)
+
+-- Blox Fruits प्लेयर का लेवल निकालने का फंक्शन
+local function getBloxFruitsLevel(p)
+    -- विधि 1: Blox Fruits मुख्य डेटा मैनेजर से खोजना
+    if p:FindFirstChild("Data") and p.Data:FindFirstChild("Level") then
+        return p.Data.Level.Value
+    -- विधि 2: सामान्य लीडरस्टैट्स से खोजना
+    elseif p:FindFirstChild("leaderstats") and p.leaderstats:FindFirstChild("Level") then
+        return p.leaderstats.Level.Value
+    end
+    return "???" -- यदि लेवल लोड न हुआ हो
+end
+
+-- एकल खिलाड़ी के लिए ESP बनाने का लॉजिक
+local function createESP(p)
+    if p == Player then return end
+    
+    local function applyESP(character)
+        local head = character:WaitForChild("Head", 5)
+        if not head then return end
+        
+        -- पुराना ESP हटाना अगर पहले से मौजूद हो
+        if head:FindFirstChild("NetherESP") then head.NetherESP:Destroy() end
+        
+        -- Billboard GUI ऑब्जेक्ट निर्माण
+        local bbg = Instance.new("BillboardGui")
+        bbg.Name = "NetherESP"
+        bbg.Size = UDim2.new(0, 200, 0, 50)
+        bbg.AlwaysOnTop = true -- दीवारों के पार दिखने के लिए आवश्यक
+        bbg.ExtentsOffset = Vector3.new(0, 3, 0)
+        bbg.Parent = head
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextSize = 13
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextStrokeTransparency = 0 -- टेक्स्ट को स्पष्ट रखने के लिए आउटलाइन
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.Parent = bbg
+        
+        -- रीयल-टाइम हेल्थ और लेवल ट्रैकर लूप
+        local espConnection
+        espConnection = RunService.Heartbeat:Connect(function()
+            if not espActive or not character or not character:FindFirstChild("Humanoid") or not head:FindFirstChild("NetherESP") then
+                if espConnection then espConnection:Disconnect() end
+                bbg:Destroy()
+                return
+            end
+            
+            local humanoid = character.Humanoid
+            local hp = math.floor(humanoid.Health)
+            local maxHp = math.floor(humanoid.MaxHealth)
+            local lvl = getBloxFruitsLevel(p)
+            
+            -- डिस्प्ले टेक्स्ट फॉर्मेट
+            textLabel.Text = string.format("%s\n[Lv. %s] [HP: %d/%d]", p.DisplayName, tostring(lvl), hp, maxHp)
+            
+            -- हेल्थ के आधार पर रंग बदलना (कम हेल्थ = लाल, फुल हेल्थ = हरा)
+            local hpPercent = humanoid.Health / humanoid.MaxHealth
+            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255):Lerp(Color3.fromRGB(255, 50, 50), 1 - hpPercent)
+        end)
+    end
+    
+    if p.Character then task.spawn(function() applyESP(p.Character) end) end
+    p.CharacterAdded:Connect(applyESP)
+end
+
+-- बटन टॉगल मैकेनिज्म
+EspButton.MouseButton1Click:Connect(function()
+    espActive = not espActive
+    if espActive then
+        EspButton.Text = "Player ESP: ON"
+        EspButton.BackgroundColor3 = Color3.fromRGB(150, 50, 150)
+        for _, p in pairs(Players:GetPlayers()) do
+            createESP(p)
+        end
+    else
+        EspButton.Text = "Player ESP: OFF"
+        EspButton.BackgroundColor3 = Color3.fromRGB(75, 75, 150)
+    end
+end)
+
+-- नए आने वाले प्लेयर्स पर ऑटोमैटिक ESP लागू करना (यदि बटन ON है)
+Players.PlayerAdded:Connect(function(p)
+    if espActive then createESP(p) end
+end)
